@@ -1,0 +1,377 @@
+// Prisma Schema for SKILLSWARE Database
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  FRESHER
+  PROFESSIONAL
+  ADMIN
+}
+
+enum Difficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum ProblemDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum SubmissionStatus {
+  ACCEPTED
+  WRONG_ANSWER
+  TIME_LIMIT_EXCEEDED
+  MEMORY_LIMIT_EXCEEDED
+  RUNTIME_ERROR
+  COMPILE_ERROR
+}
+
+enum TaskType {
+  LESSON
+  PRACTICE
+  PROJECT
+  ASSESSMENT
+  READING
+}
+
+// 1. User Model
+model User {
+  id                    String                   @id @default(uuid())
+  email                 String                   @unique
+  password              String
+  name                  String
+  role                  Role                     @default(STUDENT)
+  avatar                String?
+  resetPasswordToken    String?
+  resetPasswordExpires  DateTime?
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+
+  profile               UserProfile?
+  assessmentResults     SkillAssessmentResult[]
+  roadmaps              Roadmap[]
+  enrollments           Enrollment[]
+  lessonProgress        LessonProgress[]
+  codeSubmissions       CodeSubmission[]
+  portfolio             Portfolio?
+
+  @@index([email])
+}
+
+// 2. User Profile Model
+model UserProfile {
+  id              String      @id @default(uuid())
+  userId          String      @unique
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio             String?
+  title           String?
+  college         String?
+  degree          String?
+  graduationYear  Int?
+  location        String?
+  githubUrl       String?
+  linkedinUrl     String?
+  portfolioUrl    String?
+  resumeUrl       String?
+  targetRole      String?
+  experienceLevel Difficulty? @default(BEGINNER)
+  weeklyHours     Int         @default(10)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+// 3. Skill Model
+model Skill {
+  id          String            @id @default(uuid())
+  name        String            @unique
+  slug        String            @unique
+  category    String
+  description String
+  icon        String?
+  difficulty  Difficulty        @default(BEGINNER)
+  popular     Boolean           @default(false)
+  createdAt   DateTime          @default(now())
+
+  assessments SkillAssessment[]
+
+  @@index([category])
+  @@index([slug])
+}
+
+// 4. Skill Assessment Model
+model SkillAssessment {
+  id              String                  @id @default(uuid())
+  title           String
+  description     String
+  skillId         String
+  skill           Skill                   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  durationMinutes Int                     @default(15)
+  totalQuestions  Int                     @default(10)
+  passingScore    Int                     @default(70)
+  questions       Json                    // Array of { id, question, options, correctAnswerIndex, explanation }
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  results         SkillAssessmentResult[]
+
+  @@index([skillId])
+}
+
+// 5. Skill Assessment Result Model
+model SkillAssessmentResult {
+  id                String          @id @default(uuid())
+  userId            String
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assessmentId      String
+  assessment        SkillAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  score             Int
+  maxScore          Int
+  percentage        Float
+  proficiencyLevel  Difficulty
+  skillGaps         Json            // Array of gap strings
+  strengths         Json            // Array of strength strings
+  recommendations   Json            // Array of recommended action objects
+  answers           Json            // User selected answers
+  createdAt         DateTime        @default(now())
+
+  @@index([userId])
+  @@index([assessmentId])
+}
+
+// 6. Roadmap Model
+model Roadmap {
+  id                 String         @id @default(uuid())
+  userId             String
+  user               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title              String
+  careerGoal         String
+  description        String
+  currentLevel       Difficulty     @default(BEGINNER)
+  targetLevel        Difficulty     @default(ADVANCED)
+  weeklyHours        Int            @default(10)
+  progressPercentage Float          @default(0)
+  isCustom           Boolean        @default(false)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  phases             RoadmapPhase[]
+
+  @@index([userId])
+}
+
+// 7. Roadmap Phase Model
+model RoadmapPhase {
+  id             String        @id @default(uuid())
+  roadmapId      String
+  roadmap        Roadmap       @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  title          String
+  description    String
+  order          Int
+  estimatedWeeks Int           @default(4)
+  tasks          RoadmapTask[]
+
+  @@index([roadmapId])
+}
+
+// 8. Roadmap Task Model
+model RoadmapTask {
+  id            String       @id @default(uuid())
+  phaseId       String
+  phase         RoadmapPhase @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+  title         String
+  description   String
+  type          TaskType     @default(LESSON)
+  resourceUrl   String?
+  durationHours Float        @default(2.0)
+  isCompleted   Boolean      @default(false)
+  completedAt   DateTime?
+  order         Int
+
+  @@index([phaseId])
+}
+
+// 9. Course Model
+model Course {
+  id            String       @id @default(uuid())
+  title         String
+  slug          String       @unique
+  description   String
+  category      String
+  level         Difficulty   @default(BEGINNER)
+  durationHours Float        @default(10.0)
+  thumbnail     String?
+  tags          String[]
+  instructor    String       @default("Skillsware Academy")
+  rating        Float        @default(4.8)
+  totalStudents Int          @default(0)
+  isPublished   Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  lessons       Lesson[]
+  enrollments   Enrollment[]
+
+  @@index([category])
+  @@index([slug])
+}
+
+// 10. Lesson Model
+model Lesson {
+  id              String           @id @default(uuid())
+  courseId        String
+  course          Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title           String
+  description     String
+  order           Int
+  durationMinutes Int              @default(20)
+  content         String           // Rich Markdown & explanations
+  videoUrl        String?
+  officialDocsUrl String?
+  codeSnippet     String?
+  isFree          Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  progress        LessonProgress[]
+
+  @@index([courseId])
+}
+
+// 11. Enrollment Model
+model Enrollment {
+  id                 String    @id @default(uuid())
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId           String
+  course             Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  progressPercentage Float     @default(0)
+  isCompleted        Boolean   @default(false)
+  enrolledAt         DateTime  @default(now())
+  completedAt        DateTime?
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+}
+
+// 12. Lesson Progress Model
+model LessonProgress {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId    String
+  lesson      Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  isCompleted Boolean   @default(true)
+  completedAt DateTime  @default(now())
+
+  @@unique([userId, lessonId])
+  @@index([userId])
+  @@index([lessonId])
+}
+
+// 13. Coding Problem Model
+model CodingProblem {
+  id             String            @id @default(uuid())
+  title          String
+  slug           String            @unique
+  difficulty     ProblemDifficulty @default(EASY)
+  category       String
+  description    String            // Markdown formatted problem statement
+  examples       Json              // Array of { input, output, explanation }
+  constraints    String[]
+  starterCode    Json              // { python: string, javascript: string }
+  solutionCode   Json?             // Reference solutions
+  testCases      Json              // Array of { input, expectedOutput, isHidden }
+  acceptanceRate Float             @default(85.0)
+  points         Int               @default(100)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  submissions    CodeSubmission[]
+
+  @@index([category])
+  @@index([difficulty])
+  @@index([slug])
+}
+
+// 14. Code Submission Model
+model CodeSubmission {
+  id              String            @id @default(uuid())
+  userId          String
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problemId       String
+  problem         CodingProblem     @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  language        String            // "python" | "javascript"
+  code            String
+  status          SubmissionStatus  @default(ACCEPTED)
+  runtimeMs       Int?
+  memoryKb        Int?
+  testCasesPassed Int               @default(0)
+  totalTestCases  Int               @default(0)
+  errorOutput     String?
+  createdAt       DateTime          @default(now())
+
+  @@index([userId])
+  @@index([problemId])
+}
+
+// 15. Portfolio Model
+model Portfolio {
+  id             String             @id @default(uuid())
+  userId         String             @unique
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customSlug     String?            @unique
+  themeTemplate  String             @default("modern-indigo")
+  headline       String?
+  summary        String?
+  isPublished    Boolean            @default(false)
+  viewsCount     Int                @default(0)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  projects       PortfolioProject[]
+  certifications Certification[]
+}
+
+// 16. Portfolio Project Model
+model PortfolioProject {
+  id           String    @id @default(uuid())
+  portfolioId  String
+  portfolio    Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  title        String
+  description  String
+  liveUrl      String?
+  githubUrl    String?
+  technologies String[]
+  image        String?
+  featured     Boolean   @default(false)
+  order        Int       @default(0)
+  createdAt    DateTime  @default(now())
+
+  @@index([portfolioId])
+}
+
+// 17. Certification Model
+model Certification {
+  id            String    @id @default(uuid())
+  portfolioId   String
+  portfolio     Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  title         String
+  issuer        String
+  issueDate     DateTime?
+  credentialUrl String?
+  credentialId  String?
+  createdAt     DateTime  @default(now())
+
+  @@index([portfolioId])
+}
